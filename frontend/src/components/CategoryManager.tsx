@@ -13,14 +13,22 @@ export function CategoryManager({
   onDelete,
 }: CategoryManagerProps) {
   const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
-    if (trimmed === '') {
+    // The field is cleared asynchronously, so without this guard a fast
+    // second submit can race the reset and mix both names together.
+    if (trimmed === '' || submitting) {
       return;
     }
-    if (await onCreate(trimmed)) {
+
+    setSubmitting(true);
+    const ok = await onCreate(trimmed);
+    setSubmitting(false);
+
+    if (ok) {
       setName('');
     }
   };
@@ -35,9 +43,14 @@ export function CategoryManager({
           value={name}
           maxLength={60}
           placeholder="Nueva categoría"
+          disabled={submitting}
           onChange={(event) => setName(event.target.value)}
         />
-        <button type="submit" className="button button--primary">
+        <button
+          type="submit"
+          className="button button--primary"
+          disabled={submitting || name.trim() === ''}
+        >
           Agregar
         </button>
       </form>

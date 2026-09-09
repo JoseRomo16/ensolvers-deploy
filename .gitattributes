@@ -1,0 +1,5 @@
+# The startup script must keep LF endings: this repo is developed on Windows but
+# start.sh is required to run on Linux/macOS, where CRLF breaks the shebang.
+*.sh text eol=lf
+
+* text=auto

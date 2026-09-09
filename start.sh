@@ -59,15 +59,24 @@ npm --prefix backend run build
 
 BACKEND_PID=""
 cleanup() {
-  if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-    kill "$BACKEND_PID" 2>/dev/null || true
-    wait "$BACKEND_PID" 2>/dev/null || true
-  fi
+  [ -n "$BACKEND_PID" ] || return 0
+  kill -0 "$BACKEND_PID" 2>/dev/null || return 0
+
+  kill "$BACKEND_PID" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    kill -0 "$BACKEND_PID" 2>/dev/null || return 0
+    sleep 1
+  done
+  # Still alive after the grace period: do not leave the port taken.
+  kill -9 "$BACKEND_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
 info "Starting the API on http://localhost:${BACKEND_PORT}/api"
-npm --prefix backend run start &
+# Run node directly with `exec` so that $! is the node process itself.
+# Going through `npm run start` would make $! the npm wrapper, and killing a
+# wrapper does not kill its child: Ctrl+C would leave node holding the port.
+( cd backend && exec node dist/main.js ) &
 BACKEND_PID=$!
 
 # Wait for the API so the SPA's first request does not land on a closed port.

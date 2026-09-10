@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run of the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, build, tests)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: notes
+          POSTGRES_PASSWORD: notes
+          POSTGRES_DB: notes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U notes -d notes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+        working-directory: backend
+
+      - run: npm run lint
+        working-directory: backend
+
+      - run: npm run build
+        working-directory: backend
+
+      # The e2e suite creates and drops its own database, so it needs a user
+      # with CREATEDB - the postgres image makes POSTGRES_USER a superuser.
+      - run: npm test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://notes:notes@localhost:5432/notes
+
+  frontend:
+    name: Frontend (lint, build, Storybook)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - run: npm run lint
+        working-directory: frontend
+
+      - run: npm run build
+        working-directory: frontend
+
+      - run: npm run build-storybook
+        working-directory: frontend
+
+      - name: Check the build is a static export
+        working-directory: frontend
+        run: |
+          test -f out/index.html || { echo "out/index.html is missing"; exit 1; }
+          echo "Static export produced $(find out -type f | wc -l) files."
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Build and start the stack
+        run: |
+          docker compose up -d --wait db
+          docker compose build backend frontend
+          docker compose run --rm backend npm run migration:run:dist
+          docker compose run --rm backend npm run seed:dist
+          docker compose up -d backend frontend
+
+      - name: Wait for the API to become healthy
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health >/dev/null; then
+              echo "API is healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "The API never became healthy."
+          docker compose logs --tail 60
+          exit 1
+
+      - run: npm ci
+        working-directory: e2e
+
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - run: npm test
+        working-directory: e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --tail 100

@@ -46,3 +46,4 @@ next-env.d.ts
 # generados por `next dev`
 AGENTS.md
 CLAUDE.md
+storybook-static/

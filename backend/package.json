@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src test",
     "start": "node dist/main.js",
     "start:dev": "ts-node src/main.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/config/typeorm.config.ts",
@@ -36,6 +37,10 @@
     "multer": "^2.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "globals": "^15.15.0",
+    "typescript-eslint": "^8.26.0",
     "@nestjs/testing": "^11.0.12",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",

@@ -140,6 +140,61 @@ npm --prefix backend test -- -t "archives"     # tests matching a name
 npm --prefix backend run test:unit             # unit tests only, no database
 ```
 
+Both apps also expose a linter:
+
+```bash
+npm --prefix backend run lint
+npm --prefix frontend run lint
+```
+
+### Storybook
+
+```bash
+npm --prefix frontend run storybook          # http://localhost:6006
+npm --prefix frontend run build-storybook    # static build into storybook-static/
+```
+
+28 stories across the 8 components, covering the states that are awkward to
+reach in the running app: empty lists, the loading skeletons, the error message,
+a note with no body, a title long enough to test wrapping, and the category form
+mid-submit.
+
+The toolbar has a **theme switch** that toggles the same `dark` class on `<html>`
+the app uses, so every component is reviewed in both themes. The **a11y addon**
+runs axe against each story.
+
+> Storybook requires Node `^20.19.0 || >=22.12.0` and refuses to start below
+> that — stricter than the app itself, which runs on 22.11.
+
+### End-to-end tests
+
+```bash
+./start.sh                                   # in another terminal
+npm --prefix e2e ci
+npm --prefix e2e run install:browsers        # first run only
+npm --prefix e2e test
+```
+
+12 Playwright tests driving the real SPA against the real API: create, edit,
+archive, unarchive, delete, persistence across a reload, and category creation,
+duplicate rejection, assignment, filtering and removal.
+
+The suite shares one database with the app, so each test namespaces the rows it
+creates and the tests run serially. `E2E_BASE_URL` points them at another host.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs three jobs on every push and pull request:
+
+| Job | What it checks |
+|---|---|
+| Backend | lint, build, and the 24 tests against a `postgres:16` service |
+| Frontend | lint, build, Storybook build, and that the export really is static |
+| E2E | builds and starts the whole compose stack, then runs Playwright against it |
+
+The Playwright report is uploaded as an artifact when the suite fails, together
+with the container logs.
+
 ### There is no login
 
 The exercise lists a login screen as optional and it was not implemented, so
@@ -153,6 +208,8 @@ there are no credentials to document. All notes belong to a single implicit user
 /
 ├── backend/             NestJS REST API (Controller → Service → Repository)
 ├── frontend/            Next.js SPA, static export served by nginx
+├── e2e/                 Playwright suite driving the SPA against the API
+├── .github/workflows/   CI: lint, build and tests for every app
 ├── docker-compose.yml   PostgreSQL + API + SPA
 └── start.sh             one-command startup
 ```

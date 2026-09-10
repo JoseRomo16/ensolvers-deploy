@@ -1,0 +1,32 @@
+# Render blueprint for the REST API.
+#
+# Import it from the Render dashboard with "New > Blueprint" and point it at
+# this repository. Secrets are declared with `sync: false`, which means Render
+# prompts for them and stores them itself — they never live in this file.
+services:
+  - type: web
+    name: notes-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+
+    # Render restarts the service if this stops answering 200. The endpoint
+    # runs SELECT 1, so a healthy service also means a reachable database.
+    healthCheckPath: /api/health
+
+    envVars:
+      # Supabase session-pooler connection string. Set in the dashboard.
+      - key: DATABASE_URL
+        sync: false
+      # Supabase terminates TLS with a certificate this client has no root for.
+      - key: DATABASE_SSL
+        value: 'true'
+      # The deployed SPA origin, e.g. https://your-app.vercel.app
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DB_LOGGING
+        value: 'false'
+      - key: NODE_ENV
+        value: 'production'

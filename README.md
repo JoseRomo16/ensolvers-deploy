@@ -416,4 +416,26 @@ vulnerabilities.
 
 ## Deployment
 
-The app was not deployed; there is no live URL to document.
+| Piece | Platform | URL |
+|---|---|---|
+| SPA | Vercel | _pending_ |
+| REST API | Render | _pending_ |
+| PostgreSQL | Supabase | — |
+
+The repository ships everything the deployment needs:
+
+- `render.yaml` — Render blueprint for the API, running `backend/Dockerfile`
+  with `/api/health` as the health check. Secrets are declared `sync: false`,
+  so Render prompts for them and they never enter the repository.
+- `frontend/vercel.json` — Vercel build configuration for the static export.
+- **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)** — the step-by-step guide.
+
+Two things decide whether the deployment works, and both are covered there:
+
+1. **Which Supabase connection string.** Use the *session pooler* on port 5432.
+   The transaction pooler on 6543 breaks prepared statements, and the direct
+   connection is IPv6-only unless you buy the IPv4 add-on.
+2. **The CORS loop.** The SPA needs the API's URL at *build* time
+   (`NEXT_PUBLIC_API_URL` is compiled into the bundle), and afterwards the API
+   needs the SPA's origin in `CORS_ORIGIN`. Missing that last step is what makes
+   a deployment load correctly and then fail every request.

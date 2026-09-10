@@ -86,7 +86,10 @@ fi
 cleanup() {
   echo
   info "Stopping the containers"
-  docker compose stop >/dev/null 2>&1 || true
+  # `down` rather than `stop`: Postgres treats SIGTERM as a smart shutdown and
+  # waits for clients to disconnect, so a plain stop can leave it running past
+  # the default grace period. The named volume survives, so data is kept.
+  docker compose down --timeout 15 >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 

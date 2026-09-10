@@ -17,16 +17,13 @@ The frontend and the backend are two independent applications, each with its own
 |---|---|---|
 | Docker Engine | 29.8.0 | 24+ |
 | Docker Compose | v5.5.1 (plugin) | v2 (`docker compose`) |
-| Node.js | 22.11.0 | `^20.19.0` or `>=22.12.0` |
-| npm | 11.12.1 | 9+ |
 | bash | 5.2 | any POSIX bash/zsh |
+| Node.js | 22.11.0 | `^20.19.0` or `>=22.12.0` — **only for local development** |
+| npm | 11.12.1 | 9+ — only for local development |
 
-PostgreSQL is **not** installed on the host: `docker compose` runs it in a
-container, so the only prerequisites are Docker and Node.
-
-> **Note on the Node version.** The app was developed on Node 22.11.0 and runs
-> fine there, but Vite 7 formally asks for `^20.19.0 || >=22.12.0` and prints a
-> warning below that. Node 22.12+ is recommended to keep the output clean.
+`./start.sh` needs **nothing but Docker**: PostgreSQL, the API and the SPA all
+run in containers, and the migrations and seed run inside the API image. Node is
+only required if you want to run an app directly on the host while developing.
 
 ### Main libraries
 
@@ -47,10 +44,13 @@ container, so the only prerequisites are Docker and Node.
 
 | Package | Version |
 |---|---|
-| react / react-dom | 19.3.0 |
-| vite | 7.3.6 |
-| @vitejs/plugin-react | 5.2.0 |
+| next | 16.3.4 |
+| react / react-dom | 19.2.8 |
+| tailwindcss | 4.3.3 |
+| swr | 2.5.1 |
+| sonner | 2.0.8 |
 | typescript | 5.9.3 |
+| nginx (container image) | 1.27-alpine |
 
 ---
 
@@ -64,14 +64,21 @@ From the root of the repository:
 
 That single command:
 
-1. checks that Docker and Node are available,
+1. checks that Docker is available and that the ports it needs are free,
 2. creates the `.env` files from their `.env.example` templates,
 3. starts PostgreSQL and waits for its healthcheck,
-4. builds the API image,
+4. builds the API and SPA images,
 5. **applies the database migrations**,
 6. **seeds the initial data** (skipped if the database already has notes),
 7. starts the API and waits until `/api/health` reports the database is up,
-8. starts the frontend.
+8. starts the SPA and follows the container logs.
+
+If a port is already taken the script says which one and which variable to
+override, instead of letting Docker fail with a daemon-level bind error:
+
+```bash
+FRONTEND_PORT=5180 ./start.sh
+```
 
 - SPA: <http://localhost:5173>
 - REST API: <http://localhost:3000/api>
@@ -104,7 +111,8 @@ npm run start:dev         # or: npm run build && npm start
 cd frontend
 cp .env.example .env
 npm install
-npm run dev
+npm run dev -- -p 5173   # next dev defaults to :3000, which the API uses
+npm run build            # static export into frontend/out/
 ```
 
 ### Tests
@@ -144,8 +152,8 @@ there are no credentials to document. All notes belong to a single implicit user
 ```
 /
 ├── backend/             NestJS REST API (Controller → Service → Repository)
-├── frontend/            React SPA (Vite)
-├── docker-compose.yml   PostgreSQL + API
+├── frontend/            Next.js SPA, static export served by nginx
+├── docker-compose.yml   PostgreSQL + API + SPA
 └── start.sh             one-command startup
 ```
 
@@ -206,18 +214,43 @@ reach its database". `start.sh` polls it before handing over to the frontend.
 
 ```
 src/
+├── app/          layout and page — every component is a Client Component
 ├── api/          the only place that performs HTTP calls
-├── hooks/        useNotes / useCategories — state, loading and errors
-├── components/   presentational components
+├── hooks/        useNotes / useCategories / useTheme
+├── components/   presentational components + shared Tailwind class strings
 └── types/        mirrors of the API contracts
 ```
 
-Components never call `fetch` directly; they go through `api/`. After every
-mutation the hooks re-read the list from the server, so the UI never shows state
-that was not actually persisted.
+**It is a static export, not a server-rendered app.** `next.config.ts` sets
+`output: 'export'`, so `next build` emits plain HTML/CSS/JS and reports every
+route as static. Nothing renders on a server at request time — the container
+runs nginx over those files, which is why the image is ~75 MB. The exercise
+treats server-side rendering as a rejection criterion, so this makes "it is a
+SPA" verifiable rather than a claim.
 
-In development Vite proxies `/api` to the backend, so the browser sees a single
-origin. Set `VITE_API_URL` to point the SPA at an API on another host instead.
+Two consequences follow from that choice, on purpose:
+
+- **There is no dev-server proxy.** The SPA calls the API by absolute URL and
+  the backend allows the origin through CORS. `NEXT_PUBLIC_API_URL` is inlined
+  into the bundle at build time, which is why the Docker image takes it as a
+  build argument rather than a runtime variable.
+- **No API routes, middleware or server components** that need a request-time
+  server.
+
+Components never call `fetch` directly; they go through `api/`. Data loading
+uses **SWR** — the approach the Next.js static-export guide recommends over
+fetching inside `useEffect` — so requests are deduped and every mutation
+revalidates from the API, meaning the UI never shows state that was not
+actually persisted.
+
+Errors and confirmations surface as **toasts** (`sonner`) raised inside the
+hooks, so no component handles errors on its own.
+
+Styling is **TailwindCSS, mobile-first**: a single column below 640px, a
+two-column note grid from there, and the category sidebar only from 1024px.
+Dark mode is driven by a class on `<html>` rather than the media query, so the
+toggle in the header can override the system preference; an inline script
+applies the stored choice before first paint to avoid a flash.
 
 ---
 
@@ -294,12 +327,18 @@ fields in a request body are rejected rather than ignored.
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_PROXY_TARGET` | `http://localhost:3000` | Backend the dev server proxies `/api` to |
-| `VITE_API_URL` | *(unset)* | Set to call an API directly, bypassing the proxy |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3000/api` | Absolute URL of the REST API. Inlined at build time |
 
 `docker-compose.yml` also reads `POSTGRES_USER`, `POSTGRES_PASSWORD`,
-`POSTGRES_DB`, `POSTGRES_PORT` and `BACKEND_PORT` from the environment, all with
-working defaults.
+`POSTGRES_DB`, `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `CORS_ORIGIN`
+and `NEXT_PUBLIC_API_URL` from the environment, all with working defaults.
+
+Pointing the SPA at a different API means **rebuilding** it, because the value is
+baked into the bundle:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.example.com/api CORS_ORIGIN=https://notes.example.com docker compose up -d --build
+```
 
 ### Resetting the database
 

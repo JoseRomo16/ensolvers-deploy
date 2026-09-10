@@ -11,12 +11,14 @@ shipped as a static export.
 
 | Piece | Platform | URL |
 |---|---|---|
-| SPA | Vercel | _to be filled in_ |
-| REST API | Render | _to be filled in_ |
+| **SPA** | Vercel | **<https://ensolvers-deploy-ten.vercel.app>** |
+| REST API | Render | <https://notes-api-khj4.onrender.com/api> |
+| Health check | Render | <https://notes-api-khj4.onrender.com/api/health> |
 | PostgreSQL | Supabase | — |
 
-> The API runs on a free plan that sleeps after inactivity, so the first request
-> after an idle period can take ~30 seconds.
+> Everything runs on free plans. The API sleeps after inactivity, so the first
+> request after an idle period takes ~30 seconds — open the health check first
+> if the app looks slow to load.
 
 ## Contents
 

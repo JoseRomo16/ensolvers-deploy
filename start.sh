@@ -24,6 +24,11 @@ docker compose version >/dev/null 2>&1 ||
 docker info >/dev/null 2>&1 ||
   fail "The Docker daemon is not running. Start Docker and try again."
 
+# Used below to poll /api/health. Without this check a missing curl looks like
+# an API that never starts, after a two-minute wait.
+command -v curl >/dev/null 2>&1 ||
+  fail "curl is required to check that the API came up. Install it and try again."
+
 # --- configuration ----------------------------------------------------------
 
 # The containers get their configuration from docker-compose.yml. These files
@@ -36,6 +41,13 @@ BACKEND_PORT="${BACKEND_PORT:-3000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 API_URL="http://localhost:${BACKEND_PORT}/api"
+
+# Both of these have to follow the ports actually in use, or overriding a port
+# silently breaks the app: the SPA would keep calling :3000 and its origin would
+# not be in the API's allow-list, which the browser reports only as a failed
+# fetch. Explicit values from the environment still win.
+export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-${API_URL}}"
+export CORS_ORIGIN="${CORS_ORIGIN:-http://localhost:${FRONTEND_PORT},http://localhost:3001}"
 
 # Docker reports a port clash as a long "failed to bind host port" error from
 # the daemon. Checking first turns that into something actionable.

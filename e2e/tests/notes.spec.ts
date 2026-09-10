@@ -32,7 +32,7 @@ test.describe('Notas', () => {
     await page.getByPlaceholder('Título').fill(renamed);
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
 
-    await expect(page.getByText('Nota actualizada')).toBeVisible();
+    await expect(page.getByText('Nota actualizada').first()).toBeVisible();
     await expect(noteCard(page, renamed)).toBeVisible();
     // El formulario vuelve al modo de creación.
     await expect(page.getByRole('heading', { name: 'Nueva nota' })).toBeVisible();
@@ -43,7 +43,7 @@ test.describe('Notas', () => {
     await createNote(page, title);
 
     await noteCard(page, title).getByRole('button', { name: 'Archivar' }).click();
-    await expect(page.getByText('Nota archivada')).toBeVisible();
+    await expect(page.getByText('Nota archivada').first()).toBeVisible();
 
     // Ya no está en Activas.
     await expect(noteCard(page, title)).toHaveCount(0);
@@ -58,13 +58,13 @@ test.describe('Notas', () => {
     const title = unique('E2E desarchivar');
     await createNote(page, title);
     await noteCard(page, title).getByRole('button', { name: 'Archivar' }).click();
-    await expect(page.getByText('Nota archivada')).toBeVisible();
+    await expect(page.getByText('Nota archivada').first()).toBeVisible();
 
     await page.getByRole('tab', { name: 'Archivadas' }).click();
     await noteCard(page, title)
       .getByRole('button', { name: 'Desarchivar' })
       .click();
-    await expect(page.getByText('Nota desarchivada')).toBeVisible();
+    await expect(page.getByText('Nota desarchivada').first()).toBeVisible();
 
     await page.getByRole('tab', { name: 'Activas' }).click();
     await expect(noteCard(page, title)).toBeVisible();
@@ -76,7 +76,7 @@ test.describe('Notas', () => {
 
     await noteCard(page, title).getByRole('button', { name: 'Eliminar' }).click();
 
-    await expect(page.getByText('Nota eliminada')).toBeVisible();
+    await expect(page.getByText('Nota eliminada').first()).toBeVisible();
     await expect(noteCard(page, title)).toHaveCount(0);
   });
 

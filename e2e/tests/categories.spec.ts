@@ -89,7 +89,7 @@ test.describe('Categorías', () => {
       .click();
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
 
-    await expect(page.getByText('Nota actualizada')).toBeVisible();
+    await expect(page.getByText('Nota actualizada').first()).toBeVisible();
     await expect(noteCard(page, title).getByText(category)).toHaveCount(0);
   });
 
@@ -101,7 +101,7 @@ test.describe('Categorías', () => {
       .getByRole('button', { name: `Eliminar categoría ${name}` })
       .click();
 
-    await expect(page.getByText('Categoría eliminada')).toBeVisible();
+    await expect(page.getByText('Categoría eliminada').first()).toBeVisible();
     await expect(
       page.getByRole('combobox').getByRole('option', { name }),
     ).toHaveCount(0);

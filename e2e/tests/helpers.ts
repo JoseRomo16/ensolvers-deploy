@@ -54,11 +54,11 @@ export async function createNote(
     await toggleCategoryInForm(page, options.category);
   }
   await page.getByRole('button', { name: 'Crear nota' }).click();
-  await expect(page.getByText('Nota creada')).toBeVisible();
+  await expect(page.getByText('Nota creada').first()).toBeVisible();
 }
 
 export async function createCategory(page: Page, name: string): Promise<void> {
   await page.getByPlaceholder('Nueva categoría').fill(name);
   await page.getByRole('button', { name: 'Agregar' }).click();
-  await expect(page.getByText('Categoría creada')).toBeVisible();
+  await expect(page.getByText('Categoría creada').first()).toBeVisible();
 }

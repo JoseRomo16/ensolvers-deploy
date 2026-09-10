@@ -1,6 +1,6 @@
 'use client';
 
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { toast } from 'sonner';
 import { errorMessage } from '../api/client';
 import { notesApi } from '../api/notes.api';
@@ -16,12 +16,9 @@ import type { CreateNotePayload, Note, UpdateNotePayload } from '../types';
  * surfaces as a toast — components do not handle errors themselves.
  */
 export function useNotes(archived: boolean, categoryId: number | null) {
-  const {
-    data,
-    error,
-    isLoading,
-    mutate: revalidate,
-  } = useSWR<Note[]>(
+  const { mutate: mutateGlobal } = useSWRConfig();
+
+  const { data, error, isLoading } = useSWR<Note[]>(
     ['notes', archived, categoryId],
     () => notesApi.list({ archived, categoryId }),
     {
@@ -32,13 +29,22 @@ export function useNotes(archived: boolean, categoryId: number | null) {
     },
   );
 
+  /**
+   * Invalidates every cached note list, not just the one on screen. Archiving
+   * changes both the active and the archived list, and a category filter has
+   * its own cache entry — revalidating only the current key would leave the
+   * other tab showing a stale list until something else triggered a refetch.
+   */
+  const revalidateAll = () =>
+    mutateGlobal((key) => Array.isArray(key) && key[0] === 'notes');
+
   const run = async (
     action: () => Promise<unknown>,
     success: string,
   ): Promise<boolean> => {
     try {
       await action();
-      await revalidate();
+      await revalidateAll();
       toast.success(success);
       return true;
     } catch (cause) {
@@ -51,7 +57,7 @@ export function useNotes(archived: boolean, categoryId: number | null) {
     notes: data ?? [],
     loading: isLoading,
     failed: Boolean(error),
-    refresh: () => revalidate(),
+    refresh: revalidateAll,
     createNote: (payload: CreateNotePayload) =>
       run(() => notesApi.create(payload), 'Nota creada'),
     updateNote: (id: number, payload: UpdateNotePayload) =>

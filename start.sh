@@ -34,7 +34,31 @@ info "Preparing environment files"
 
 BACKEND_PORT="${BACKEND_PORT:-3000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 API_URL="http://localhost:${BACKEND_PORT}/api"
+
+# Docker reports a port clash as a long "failed to bind host port" error from
+# the daemon. Checking first turns that into something actionable.
+port_in_use() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && exec 3>&- && return 0
+  return 1
+}
+
+# Skipped when our own stack is already up: those ports are meant to be taken.
+if [ -z "$(docker compose ps -q 2>/dev/null)" ]; then
+  for entry in "the API:${BACKEND_PORT}:BACKEND_PORT" \
+               "the SPA:${FRONTEND_PORT}:FRONTEND_PORT" \
+               "PostgreSQL:${POSTGRES_PORT}:POSTGRES_PORT"; do
+    name="${entry%%:*}"
+    rest="${entry#*:}"
+    port="${rest%%:*}"
+    variable="${rest##*:}"
+    if port_in_use "$port"; then
+      fail "Port ${port}, needed for ${name}, is already in use.
+       Stop whatever is listening on it, or run:  ${variable}=<free port> ./start.sh"
+    fi
+  done
+fi
 
 cleanup() {
   echo

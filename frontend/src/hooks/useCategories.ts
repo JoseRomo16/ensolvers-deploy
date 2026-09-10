@@ -12,10 +12,14 @@ export function useCategories() {
     isLoading,
     mutate: revalidate,
   } = useSWR<Category[]>(['categories'], () => categoriesApi.list(), {
+    // Same as useNotes: a stable id keeps SWR's retries from stacking toasts.
     onError: (cause) =>
       toast.error('No se pudieron cargar las categorías', {
+        id: 'categories-load-error',
         description: errorMessage(cause),
+        duration: 8000,
       }),
+    errorRetryCount: 3,
   });
 
   const run = async (

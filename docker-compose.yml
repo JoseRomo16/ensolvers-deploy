@@ -24,7 +24,8 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-notes}:${POSTGRES_PASSWORD:-notes}@db:5432/${POSTGRES_DB:-notes}
       PORT: 3000
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      # Comma-separated. Covers both local ports the SPA can be served from.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:3001}
       DB_LOGGING: ${DB_LOGGING:-false}
     ports:
       - '${BACKEND_PORT:-3000}:3000'

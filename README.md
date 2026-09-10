@@ -377,7 +377,7 @@ fields in a request body are rejected rather than ignored.
 | `DATABASE_URL` | `postgres://notes:notes@localhost:5432/notes` | PostgreSQL connection string |
 | `DATABASE_SSL` | `false` | Set to `true` for managed Postgres that requires TLS |
 | `PORT` | `3000` | Port the API listens on |
-| `CORS_ORIGIN` | `http://localhost:5173` | Origin allowed by CORS |
+| `CORS_ORIGIN` | `http://localhost:5173,http://localhost:3001` | Comma-separated list of allowed origins; `*` allows any |
 | `DB_LOGGING` | `false` | Log every SQL statement |
 
 `frontend/.env`:

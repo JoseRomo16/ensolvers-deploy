@@ -151,8 +151,28 @@ CORS_ORIGIN = https://your-app.vercel.app
 Exactly the origin: scheme included, **no trailing slash**, no path. Save, and
 let Render redeploy.
 
-Symptom if you skip this: the SPA loads and looks fine, but every request fails
-and the toasts say `Failed to fetch`. The browser console names CORS explicitly.
+`CORS_ORIGIN` accepts a **comma-separated list**, which is what you want in
+practice — the same API is usually reached from more than one origin:
+
+```
+CORS_ORIGIN = https://your-app.vercel.app,https://your-app-git-main-you.vercel.app,http://localhost:5173
+```
+
+Vercel gives every branch its own preview URL, so add the ones you actually
+open. `*` allows any origin; convenient while debugging, not what you want to
+leave in place.
+
+Symptom if you skip this: the SPA loads and looks fine, but every request fails.
+The API logs the blocked origin on each attempt —
+
+```
+WARN [Bootstrap] Blocked a cross-origin request from "https://your-app.vercel.app".
+CORS_ORIGIN currently allows: http://localhost:5173
+```
+
+— and the API also prints the list it is enforcing at startup, so `docker compose
+logs backend` or the Render log tells you immediately whether the variable
+arrived.
 
 ---
 

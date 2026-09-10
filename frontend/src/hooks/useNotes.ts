@@ -22,10 +22,16 @@ export function useNotes(archived: boolean, categoryId: number | null) {
     ['notes', archived, categoryId],
     () => notesApi.list({ archived, categoryId }),
     {
+      // SWR retries a failed request on its own, and onError fires on every
+      // attempt. Without a stable id each retry stacked another identical
+      // toast, so a single unreachable API buried the screen in them.
       onError: (cause) =>
         toast.error('No se pudieron cargar las notas', {
+          id: 'notes-load-error',
           description: errorMessage(cause),
+          duration: 8000,
         }),
+      errorRetryCount: 3,
     },
   );
 

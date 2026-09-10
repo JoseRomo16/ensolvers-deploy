@@ -20,13 +20,27 @@ interface ErrorBody {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch {
+    // fetch rejects with a bare "Failed to fetch" for every network-level
+    // problem, including a CORS block, which says nothing about what to check.
+    const origin =
+      typeof window === 'undefined' ? 'este origen' : window.location.origin;
+    throw new ApiError(
+      `No se pudo contactar la API en ${BASE_URL}. Verificá que esté corriendo y que ` +
+        `CORS_ORIGIN la permita desde ${origin}.`,
+      0,
+    );
+  }
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ErrorBody | null;

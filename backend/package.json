@@ -1,7 +1,7 @@
 {
   "name": "notes-backend",
   "version": "1.0.0",
-  "description": "REST API for the notes app - NestJS + TypeORM + SQLite",
+  "description": "REST API for the notes app - NestJS + TypeORM + PostgreSQL",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -12,7 +12,11 @@
     "start:dev": "ts-node src/main.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/config/typeorm.config.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/config/typeorm.config.ts",
+    "migration:run:dist": "typeorm migration:run -d dist/config/typeorm.config.js",
+    "seed": "ts-node src/database/seed.ts",
+    "seed:dist": "node dist/database/seed.js",
     "test": "jest",
+    "test:unit": "jest --testPathPattern \"src/.*\\.spec\\.ts$\"",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -20,20 +24,23 @@
     "@nestjs/core": "^11.0.12",
     "@nestjs/platform-express": "^11.0.12",
     "@nestjs/typeorm": "^11.0.0",
-    "better-sqlite3": "^11.9.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.7",
+    "pg": "^8.13.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "typeorm": "^0.3.21"
   },
+  "overrides": {
+    "multer": "^2.3.0"
+  },
   "devDependencies": {
     "@nestjs/testing": "^11.0.12",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.14",
+    "@types/pg": "^8.11.11",
     "@types/supertest": "^6.0.3",
     "jest": "^29.7.0",
     "supertest": "^7.1.0",
@@ -48,6 +55,7 @@
     "transform": {
       "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
     },
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testTimeout": 30000
   }
 }

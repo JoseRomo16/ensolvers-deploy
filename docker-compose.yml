@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: notes-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-notes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notes}
+      POSTGRES_DB: ${POSTGRES_DB:-notes}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # start.sh waits on this before running the migrations.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-notes} -d ${POSTGRES_DB:-notes}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    container_name: notes-backend
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-notes}:${POSTGRES_PASSWORD:-notes}@db:5432/${POSTGRES_DB:-notes}
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      DB_LOGGING: ${DB_LOGGING:-false}
+    ports:
+      - '${BACKEND_PORT:-3000}:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

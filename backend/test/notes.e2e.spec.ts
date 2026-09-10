@@ -1,34 +1,82 @@
-import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 import { CategoriesModule } from '../src/categories/categories.module';
 import { Category } from '../src/categories/category.entity';
-import { InitialSchema1757462400000 } from '../src/migrations/1757462400000-InitialSchema';
+import { InitialSchema1757980000000 } from '../src/migrations/1757980000000-InitialSchema';
 import { Note } from '../src/notes/note.entity';
 import { NotesModule } from '../src/notes/notes.module';
 
+const DATABASE_URL =
+  process.env.TEST_DATABASE_URL ??
+  process.env.DATABASE_URL ??
+  'postgres://notes:notes@localhost:5432/notes';
+
+const SSL =
+  process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false;
+
 /**
- * Runs against a real SQLite file built by the same migration the app uses,
+ * Every run gets a throwaway database, created and dropped by the suite, so the
+ * tests never touch development data and concurrent runs cannot collide.
+ *
+ * A dedicated database rather than a Postgres schema: the migration issues raw
+ * SQL with unqualified table names, which resolves through `search_path` and
+ * would land in `public` regardless of TypeORM's `schema` option.
+ */
+const TEST_DATABASE = `notes_e2e_${process.pid}`;
+
+function withDatabase(connectionUrl: string, database: string): string {
+  const parsed = new URL(connectionUrl);
+  parsed.pathname = `/${database}`;
+  return parsed.toString();
+}
+
+/** `postgres` is the maintenance database: CREATE/DROP DATABASE run from there. */
+const MAINTENANCE_URL = withDatabase(DATABASE_URL, 'postgres');
+const TEST_URL = withDatabase(DATABASE_URL, TEST_DATABASE);
+
+async function runOnMaintenance(statements: string[]): Promise<void> {
+  const admin = new DataSource({
+    type: 'postgres',
+    url: MAINTENANCE_URL,
+    ssl: SSL,
+  });
+  await admin.initialize();
+  try {
+    for (const statement of statements) {
+      await admin.query(statement);
+    }
+  } finally {
+    await admin.destroy();
+  }
+}
+
+/**
+ * Runs against a real PostgreSQL built by the same migration the app ships,
  * so this also proves the migration produces a schema the entities can use.
  */
 describe('Notes API (e2e)', () => {
-  const databasePath = join(tmpdir(), `notes-e2e-${Date.now()}.sqlite`);
   let app: INestApplication;
 
   beforeAll(async () => {
+    await runOnMaintenance([
+      `DROP DATABASE IF EXISTS "${TEST_DATABASE}"`,
+      `CREATE DATABASE "${TEST_DATABASE}"`,
+    ]);
+
     const moduleRef = await Test.createTestingModule({
       imports: [
         TypeOrmModule.forRoot({
-          type: 'better-sqlite3',
-          database: databasePath,
+          type: 'postgres',
+          url: TEST_URL,
           entities: [Note, Category],
-          migrations: [InitialSchema1757462400000],
+          migrations: [InitialSchema1757980000000],
           migrationsRun: true,
           synchronize: false,
+          retryAttempts: 0,
+          ssl: SSL,
         }),
         NotesModule,
         CategoriesModule,
@@ -48,8 +96,11 @@ describe('Notes API (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    rmSync(databasePath, { force: true });
+    // The app has to let go of its pool before the database can be dropped.
+    if (app) {
+      await app.close();
+    }
+    await runOnMaintenance([`DROP DATABASE IF EXISTS "${TEST_DATABASE}"`]);
   });
 
   const api = () => request(app.getHttpServer());

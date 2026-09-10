@@ -3,8 +3,8 @@
 # Sets up and runs the whole app with a single command:
 #   ./start.sh
 #
-# Installs dependencies for both apps, creates the .env files, applies the
-# database migrations and starts the API and the SPA. Ctrl+C stops both.
+# Brings up PostgreSQL and the API in Docker, applies the migrations, seeds the
+# initial data and starts the frontend. Ctrl+C stops everything.
 
 set -euo pipefail
 
@@ -17,8 +17,16 @@ fail() { printf '\033[1;31mError:\033[0m %s\n' "$1" >&2; exit 1; }
 
 # --- requirements -----------------------------------------------------------
 
-command -v node >/dev/null 2>&1 || fail "Node.js is not installed. See README.md for the required version."
-command -v npm  >/dev/null 2>&1 || fail "npm is not installed. See README.md for the required version."
+command -v docker >/dev/null 2>&1 ||
+  fail "Docker is required. See README.md for the supported versions."
+docker compose version >/dev/null 2>&1 ||
+  fail "The Docker Compose v2 plugin is required ('docker compose', not 'docker-compose')."
+docker info >/dev/null 2>&1 ||
+  fail "The Docker daemon is not running. Start Docker and try again."
+
+command -v node >/dev/null 2>&1 ||
+  fail "Node.js is required to run the frontend. See README.md."
+command -v npm >/dev/null 2>&1 || fail "npm is required. See README.md."
 
 NODE_VERSION="$(node -v)"
 NODE_MAJOR="$(printf '%s' "${NODE_VERSION#v}" | cut -d. -f1)"
@@ -29,7 +37,7 @@ if [ "$NODE_MAJOR" -lt 20 ]; then
 fi
 if { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -lt 19 ]; } ||
    { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -lt 12 ]; }; then
-  warn "Vite expects Node ^20.19.0 or >=22.12.0 (found $NODE_VERSION). The app usually still runs."
+  warn "The frontend tooling expects Node ^20.19.0 or >=22.12.0 (found $NODE_VERSION)."
 fi
 
 # --- configuration ----------------------------------------------------------
@@ -38,61 +46,57 @@ info "Preparing environment files"
 [ -f backend/.env ]  || cp backend/.env.example  backend/.env
 [ -f frontend/.env ] || cp frontend/.env.example frontend/.env
 
-BACKEND_PORT="$(grep -E '^PORT=' backend/.env | cut -d= -f2 | tr -d '[:space:]' || true)"
 BACKEND_PORT="${BACKEND_PORT:-3000}"
+API_URL="http://localhost:${BACKEND_PORT}/api"
 
-# --- install and build ------------------------------------------------------
+# --- database and API -------------------------------------------------------
 
-info "Installing backend dependencies"
-npm --prefix backend install
+info "Starting PostgreSQL"
+docker compose up -d --wait db
+
+info "Building the API image"
+docker compose build backend
+
+# Run against a one-off container so the schema exists before the API boots.
+info "Applying database migrations"
+docker compose run --rm backend npm run migration:run:dist
+
+info "Seeding initial data"
+docker compose run --rm backend npm run seed:dist
+
+info "Starting the API"
+docker compose up -d backend
+
+info "Waiting for the API to become healthy"
+API_READY=0
+for _ in $(seq 1 60); do
+  if curl -sf "${API_URL}/health" >/dev/null 2>&1; then
+    API_READY=1
+    break
+  fi
+  sleep 2
+done
+if [ "$API_READY" -ne 1 ]; then
+  docker compose logs --tail 40 backend >&2
+  fail "The API did not become healthy. Container logs are above."
+fi
+
+# --- frontend ---------------------------------------------------------------
+
+cleanup() {
+  echo
+  info "Stopping the containers"
+  docker compose stop >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
 
 info "Installing frontend dependencies"
 npm --prefix frontend install
 
-info "Applying database migrations (creates the SQLite schema)"
-npm --prefix backend run migration:run
+echo
+info "API      -> ${API_URL}"
+info "Health   -> ${API_URL}/health"
+info "Frontend -> http://localhost:5173"
+echo
 
-info "Building the backend"
-npm --prefix backend run build
-
-# --- run --------------------------------------------------------------------
-
-BACKEND_PID=""
-cleanup() {
-  [ -n "$BACKEND_PID" ] || return 0
-  kill -0 "$BACKEND_PID" 2>/dev/null || return 0
-
-  kill "$BACKEND_PID" 2>/dev/null || true
-  for _ in 1 2 3 4 5; do
-    kill -0 "$BACKEND_PID" 2>/dev/null || return 0
-    sleep 1
-  done
-  # Still alive after the grace period: do not leave the port taken.
-  kill -9 "$BACKEND_PID" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-info "Starting the API on http://localhost:${BACKEND_PORT}/api"
-# Run node directly with `exec` so that $! is the node process itself.
-# Going through `npm run start` would make $! the npm wrapper, and killing a
-# wrapper does not kill its child: Ctrl+C would leave node holding the port.
-( cd backend && exec node dist/main.js ) &
-BACKEND_PID=$!
-
-# Wait for the API so the SPA's first request does not land on a closed port.
-if command -v curl >/dev/null 2>&1; then
-  for _ in $(seq 1 30); do
-    if curl -sf "http://localhost:${BACKEND_PORT}/api/notes" >/dev/null 2>&1; then
-      break
-    fi
-    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-      fail "The backend stopped while starting up. Check the output above."
-    fi
-    sleep 1
-  done
-else
-  sleep 3
-fi
-
-info "Starting the SPA on http://localhost:5173"
 npm --prefix frontend run dev

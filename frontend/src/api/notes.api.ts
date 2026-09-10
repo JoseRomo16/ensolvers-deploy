@@ -34,12 +34,4 @@ export const notesApi = {
   unarchive(id: number): Promise<Note> {
     return http.patch<Note>(`/notes/${id}/unarchive`);
   },
-
-  addCategory(noteId: number, categoryId: number): Promise<Note> {
-    return http.post<Note>(`/notes/${noteId}/categories`, { categoryId });
-  },
-
-  removeCategory(noteId: number, categoryId: number): Promise<Note> {
-    return http.delete<Note>(`/notes/${noteId}/categories/${categoryId}`);
-  },
 };

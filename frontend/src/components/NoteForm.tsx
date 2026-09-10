@@ -1,6 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+'use client';
+
+import { useState, type FormEvent } from 'react';
 import type { Category, Note } from '../types';
 import { CategoryPicker } from './CategoryPicker';
+import { button, card, cx, input } from './ui';
 
 export interface NoteFormValues {
   title: string;
@@ -10,7 +13,14 @@ export interface NoteFormValues {
 
 interface NoteFormProps {
   categories: Category[];
-  /** When set, the form edits that note instead of creating a new one. */
+  /**
+   * When set, the form edits that note instead of creating a new one.
+   *
+   * The caller must give this component a `key` derived from the note id so
+   * React remounts it when the selection changes. That is what resets the
+   * fields — an effect syncing props into state would re-render twice and is
+   * what React's own guidance replaces with this pattern.
+   */
   note: Note | null;
   onSubmit: (values: NoteFormValues) => Promise<boolean>;
   onCancel: () => void;
@@ -22,17 +32,12 @@ export function NoteForm({
   onSubmit,
   onCancel,
 }: NoteFormProps) {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [categoryIds, setCategoryIds] = useState<number[]>([]);
+  const [title, setTitle] = useState(() => note?.title ?? '');
+  const [content, setContent] = useState(() => note?.content ?? '');
+  const [categoryIds, setCategoryIds] = useState<number[]>(
+    () => note?.categories.map((category) => category.id) ?? [],
+  );
   const [submitting, setSubmitting] = useState(false);
-
-  // Reload the fields whenever the note being edited changes.
-  useEffect(() => {
-    setTitle(note?.title ?? '');
-    setContent(note?.content ?? '');
-    setCategoryIds(note?.categories.map((category) => category.id) ?? []);
-  }, [note]);
 
   const toggleCategory = (categoryId: number) => {
     setCategoryIds((current) =>
@@ -61,24 +66,26 @@ export function NoteForm({
   };
 
   return (
-    <form className="card form" onSubmit={handleSubmit}>
-      <h2 className="form__title">{note ? 'Editar nota' : 'Nueva nota'}</h2>
+    <form onSubmit={handleSubmit} className={cx(card, 'flex flex-col gap-3')}>
+      <h2 className="text-base font-semibold">
+        {note ? 'Editar nota' : 'Nueva nota'}
+      </h2>
 
       <input
-        className="input"
-        placeholder="Título"
         value={title}
         maxLength={255}
         required
+        placeholder="Título"
         onChange={(event) => setTitle(event.target.value)}
+        className={input}
       />
 
       <textarea
-        className="input textarea"
-        placeholder="Contenido"
-        rows={4}
         value={content}
+        rows={4}
+        placeholder="Contenido"
         onChange={(event) => setContent(event.target.value)}
+        className={cx(input, 'resize-y')}
       />
 
       <CategoryPicker
@@ -87,19 +94,19 @@ export function NoteForm({
         onToggle={toggleCategory}
       />
 
-      <div className="form__actions">
+      <div className="flex flex-wrap gap-2">
         <button
           type="submit"
-          className="button button--primary"
           disabled={submitting || title.trim() === ''}
+          className={cx(button.base, button.primary)}
         >
           {note ? 'Guardar cambios' : 'Crear nota'}
         </button>
         {note && (
           <button
             type="button"
-            className="button button--ghost"
             onClick={onCancel}
+            className={cx(button.base, button.ghost)}
           >
             Cancelar
           </button>

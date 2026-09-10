@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+/*
+ * Dark mode is driven by a `.dark` class on <html> rather than the media query,
+ * so the user can override the system preference with the toggle in the header.
+ * Tailwind v4 declares that variant in CSS instead of a config file.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+/* Keep the scrollbar gutter stable so toggling lists does not shift the layout. */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}

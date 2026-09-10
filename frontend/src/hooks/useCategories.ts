@@ -1,50 +1,45 @@
-import { useCallback, useEffect, useState } from 'react';
+'use client';
+
+import useSWR from 'swr';
+import { toast } from 'sonner';
 import { categoriesApi } from '../api/categories.api';
 import { errorMessage } from '../api/client';
 import type { Category } from '../types';
 
 export function useCategories() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<Category[]>(['categories'], () => categoriesApi.list(), {
+    onError: (cause) =>
+      toast.error('No se pudieron cargar las categorías', {
+        description: errorMessage(cause),
+      }),
+  });
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const run = async (
+    action: () => Promise<unknown>,
+    success: string,
+  ): Promise<boolean> => {
     try {
-      setCategories(await categoriesApi.list());
-      setError(null);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
+      await action();
+      await revalidate();
+      toast.success(success);
+      return true;
+    } catch (cause) {
+      toast.error(errorMessage(cause));
+      return false;
     }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const mutate = useCallback(
-    async (action: () => Promise<unknown>): Promise<boolean> => {
-      try {
-        await action();
-        setError(null);
-        await refresh();
-        return true;
-      } catch (err) {
-        setError(errorMessage(err));
-        return false;
-      }
-    },
-    [refresh],
-  );
+  };
 
   return {
-    categories,
-    loading,
-    error,
-    refresh,
-    createCategory: (name: string) => mutate(() => categoriesApi.create(name)),
-    deleteCategory: (id: number) => mutate(() => categoriesApi.remove(id)),
+    categories: data ?? [],
+    loading: isLoading,
+    refresh: () => revalidate(),
+    createCategory: (name: string) =>
+      run(() => categoriesApi.create(name), 'Categoría creada'),
+    deleteCategory: (id: number) =>
+      run(() => categoriesApi.remove(id), 'Categoría eliminada'),
   };
 }

@@ -1,4 +1,7 @@
+'use client';
+
 import type { Category } from '../types';
+import { input, muted } from './ui';
 
 interface CategoryFilterProps {
   categories: Category[];
@@ -12,14 +15,14 @@ export function CategoryFilter({
   onChange,
 }: CategoryFilterProps) {
   return (
-    <label className="filter">
-      <span className="filter__label">Categoría</span>
+    <label className="flex w-full items-center gap-2 sm:w-auto">
+      <span className={`${muted} shrink-0`}>Categoría</span>
       <select
-        className="filter__select"
         value={selectedId ?? ''}
         onChange={(event) =>
           onChange(event.target.value === '' ? null : Number(event.target.value))
         }
+        className={`${input} sm:w-44`}
       >
         <option value="">Todas</option>
         {categories.map((category) => (

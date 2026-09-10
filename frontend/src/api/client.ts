@@ -1,4 +1,9 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
+/**
+ * A static export has no dev-server proxy, so the SPA always calls the API by
+ * absolute URL and the backend allows the origin through CORS. The value is
+ * baked in at build time, which is why the Docker image takes it as a build arg.
+ */
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -49,11 +54,8 @@ export const http = {
 };
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
+  if (error instanceof ApiError || error instanceof Error) {
     return error.message;
   }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Unexpected error';
+  return 'Ocurrió un error inesperado';
 }

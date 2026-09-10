@@ -33,5 +33,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the bundle at build time: a static export cannot read
+        # environment variables at runtime.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+    container_name: notes-frontend
+    ports:
+      - '${FRONTEND_PORT:-5173}:80'
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   pgdata:

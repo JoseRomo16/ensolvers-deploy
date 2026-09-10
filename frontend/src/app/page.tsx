@@ -1,30 +1,27 @@
-import { useState } from 'react';
-import './App.css';
-import { CategoryFilter } from './components/CategoryFilter';
-import { CategoryManager } from './components/CategoryManager';
-import { NoteForm, type NoteFormValues } from './components/NoteForm';
-import { NoteList } from './components/NoteList';
-import { TabSwitcher } from './components/TabSwitcher';
-import { useCategories } from './hooks/useCategories';
-import { useNotes } from './hooks/useNotes';
-import type { Note } from './types';
+'use client';
 
-export default function App() {
+import { useState } from 'react';
+import { CategoryFilter } from '../components/CategoryFilter';
+import { CategoryManager } from '../components/CategoryManager';
+import { NoteForm, type NoteFormValues } from '../components/NoteForm';
+import { NoteList } from '../components/NoteList';
+import { TabSwitcher } from '../components/TabSwitcher';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { useCategories } from '../hooks/useCategories';
+import { useNotes } from '../hooks/useNotes';
+import type { Note } from '../types';
+
+export default function Home() {
   const [archived, setArchived] = useState(false);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
 
-  const {
-    categories,
-    error: categoriesError,
-    createCategory,
-    deleteCategory,
-  } = useCategories();
+  const { categories, createCategory, deleteCategory } = useCategories();
 
   const {
     notes,
     loading,
-    error: notesError,
+    failed,
     refresh: refreshNotes,
     createNote,
     updateNote,
@@ -77,44 +74,47 @@ export default function App() {
     }
   };
 
-  const emptyMessage =
-    categoryId !== null
+  const emptyMessage = failed
+    ? 'No se pudieron cargar las notas. Revisá que la API esté corriendo.'
+    : categoryId !== null
       ? 'No hay notas con esta categoría.'
       : archived
         ? 'No hay notas archivadas.'
         : 'No hay notas activas. Creá la primera arriba.';
 
-  const error = notesError ?? categoriesError;
-
   return (
-    <div className="app">
-      <header className="app__header">
-        <h1 className="app__title">Notas</h1>
-        <p className="app__subtitle">Creá, etiquetá y archivá tus notas.</p>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            Notas
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Creá, etiquetá y archivá tus notas.
+          </p>
+        </div>
+        <ThemeToggle />
       </header>
 
-      {error && (
-        <div className="alert" role="alert">
-          {error}
-        </div>
-      )}
-
-      <div className="layout">
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start">
         <CategoryManager
           categories={categories}
           onCreate={createCategory}
           onDelete={handleDeleteCategory}
         />
 
-        <main className="content">
+        <main className="flex min-w-0 flex-col gap-5">
+          {/* The key remounts the form when the selection changes, which is
+              what resets its fields. See NoteForm for why. */}
           <NoteForm
+            key={editingNote?.id ?? 'new'}
             categories={categories}
             note={editingNote}
             onSubmit={handleSubmit}
             onCancel={() => setEditingNote(null)}
           />
 
-          <div className="toolbar">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <TabSwitcher
               archived={archived}
               onChange={(value) => {
